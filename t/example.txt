@@ -31,7 +31,8 @@ References: <C52D17DA-5166-11D9-A614-0003934BEBF0@example.com>
 Date: Sun, 19 Dec 2004 16:54:24 -0500 (EST)
 Subject: Re: Hello world?
 From: "Patrick Smithers" <patrick@example.com>
-To: "Karl Dupont" <karl@example.com>
+To: "Karl Dupont" <karl@example.com>,
+	"Aaron S. Cope" <asc@example.com>,
 Cc: Poutine =?iso-8859-1?Q?Pag=E9?= <poutine@example.com>,
 	"Aaron Straup Cope" <asc@example.com>,
 	"Homer Sheridan" <homer@example.com>

@@ -1,10 +1,10 @@
-# $Id: RDF.pm,v 1.10 2004/12/22 17:27:19 asc Exp $
+# $Id: RDF.pm,v 1.11 2004/12/22 23:21:21 asc Exp $
 use strict;
 
 package XML::Generator::RFC822::RDF;
 use base qw (XML::SAX::Base);
 
-$XML::Generator::RFC822::RDF::VERSION = '1.0';
+$XML::Generator::RFC822::RDF::VERSION = '1.1';
 
 =head1 NAME
 
@@ -113,13 +113,30 @@ sub import {
 =head2 __PACKAGE__->new(%args)
 
 This method is inherited from I<XML::SAX::Base> and returns a
-I<XML::Generator::RFC822::RDF> object.
+I<XML::Generator::RFC822::RDF> object. Additionally, the following
+parameters are allowed :
+
+=over 4
+
+=item * B<Brief>
+
+Boolean.
+
+If true, the parser will ignore a message's body and all headers 
+except : To, From, Cc, Return-Path, Delivered-To, Reply-To, Date, 
+Subject
+
+Default is false.
+
+=back
 
 =cut
 
 sub new {
     my $pkg  = shift;
-    my $self = $pkg->SUPER::new(@_);
+    my %args = @_;
+
+    my $self = $pkg->SUPER::new(%args);
 
     if (! $self) {
 	return undef;
@@ -127,6 +144,8 @@ sub new {
 
     $self->{'__addrs'}     = {};
     $self->{'__relations'} = {};
+    $self->{'__parts'}     = [];
+    $self->{'__brief'}     = ($args{'Brief'}) ? 1 : 0;
 
     return bless $self,$pkg;
 }
@@ -228,14 +247,32 @@ sub _parse {
 	    $self->end_element({Name => "rfc822:$utf8_header"});
 	}
 
-	else {
+	elsif (($utf8_header eq "Subject") || (! $self->{'__brief'})) {
 	    $self->start_element({Name=>"rfc822:$utf8_header"});
 	    $self->characters({Data=>&_prepare_text($msg->header($header))});
 	    $self->end_element({Name=>"rfc822:$utf8_header"});
 	}
+
+	else {}
     }
 
-    #
+    $self->_body($msg);
+    $self->end_element({Name=>"rdf:Description"});
+
+    $self->_dump_body_parts($msg);
+    $self->_dump_emails();
+    $self->_dump_relations();
+
+    return 1;
+}
+
+sub _body {
+    my $self = shift;
+    my $msg  = shift;
+
+    if ($self->{'__brief'}) {
+	return 1;
+    }
 
     my $count = 1;
     
@@ -245,7 +282,8 @@ sub _parse {
     $self->start_element({Name => "rfc822:Body"});      
     $self->start_element({Name => "rdf:Seq"});
     
-    my $body = sprintf("x-urn:ietf:params:rfc822:Body#%s",$sha1_msgid);
+    my $sha1_msgid = sha1_hex($msg->header("Message-ID"));
+    my $body       = sprintf("x-urn:ietf:params:rfc822:Body#%s",$sha1_msgid);
     
     foreach (@parts) {
 	
@@ -260,25 +298,21 @@ sub _parse {
     $self->end_element({Name => "rdf:Seq"});    
     $self->end_element({Name=>"rfc822:Body"});
 
-    #
-
-    $self->end_element({Name=>"rdf:Description"});
-
-    $self->_dump_body($msg,\@parts);
-    $self->_dump_emails();
-    $self->_dump_relations();
-
+    $self->{'__parts'} = \@parts;
     return 1;
 }
 
-sub _dump_body {
+sub _dump_body_parts {
     my $self  = shift;
     my $msg   = shift;
-    my $parts = shift;
+
+    if ($self->{'__brief'}) {
+	return 1;
+    }
 
     my $count = 1;
     
-    foreach my $part (@$parts) {
+    foreach my $part (@{$self->{'__parts'}}) {
 	
 	my $mpart = sprintf("x-urn:ietf:params:rfc822:Body#%s_%s",
 			    sha1_hex($msg->header("Message-ID")),
@@ -289,13 +323,13 @@ sub _dump_body {
 							      Value => encode_utf8($mpart)}}});
 	
 	$self->start_element({Name=>"rfc822:content-type"});
-	$self->characters({Data=>&_prepare_text($parts->[0]->content_type())});
+	$self->characters({Data=>&_prepare_text($self->{'__parts'}->[0]->content_type())});
 	$self->end_element({Name=>"rfc822:content-type"});
 	
 	$self->start_element({Name=>"rdf:value"});
 	$self->start_cdata();
 	# Oof - do I need to mime_decode all this too?
-	$self->characters({Data=>&_prepare_text($parts->[0]->body_raw())});
+	$self->characters({Data=>&_prepare_text($self->{'__parts'}->[0]->body_raw())});
 	$self->end_cdata();
 	$self->end_element({Name=>"rdf:value"});
 	$self->end_element({Name=>"rdf:Description"});
@@ -472,11 +506,11 @@ sub _namespaces {
 
 =head1 VERSION
 
-1.0
+1.1
 
 =head1 DATE
 
-$Date: 2004/12/22 17:27:19 $
+$Date: 2004/12/22 23:21:21 $
 
 =head1 AUTHOR
 
@@ -496,3 +530,5 @@ under the same terms as Perl itself.
 =cut
 
 return 1;
+
+__END__
